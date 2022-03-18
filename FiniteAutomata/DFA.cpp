@@ -46,6 +46,7 @@ void DFA::create(NFAMap& mp,charset& cst,int start,int end) {
         }
     }
     minor(cst);
+
 }
 DFA::DFA(NFA& n){
     auto [moveList,cst] = n.getMoveList();
@@ -151,7 +152,7 @@ void DFA::minor(charset& cst){
         }
     }while(newStateGroup != stateGroup);
     Edges newEdges;                  // 新边集
-    std::unordered_map<int, int> mp; // 领导节点对应新边集点
+    std::unordered_map<int, int> leaderToNewNode,nodeToLeader; // 领导节点对应新边集点
     //并查集开始
     std::unordered_map<int, int> mergeSet;
     for(int i = 0;i<status;i++) mergeSet[i] = i;
@@ -162,32 +163,33 @@ void DFA::minor(charset& cst){
     auto merge = [&mergeSet,&lookup](int a,int b){
         auto fa = lookup(a);
         auto fb = lookup(b);
-        mergeSet[b] = a;
+        mergeSet[fb] = fa;
     };
     //并查集结束
     int statCnt = 0;
-    int start = 0;
+    int newStart = 0;
     std::unordered_set<int> newFinalStatus;
     for (auto &st:newStateGroup){
-        if(st.count(0)) start = statCnt;
+        if(st.count(0)) newStart = statCnt;
         int leader = *(st.begin());
         if( finalStatus.count(leader) ) newFinalStatus.insert(statCnt);
         for(auto &v:st){
             merge(leader,v);
         }
-        mp[leader] = statCnt++;
+        leaderToNewNode[leader] = statCnt;
+        nodeToLeader[statCnt++] = leader;
     }
     for(int i = 0;i<statCnt;i++){
         std::unordered_map<char, int> edge;
-        int srcNode = mp[i];
+        int srcNode = nodeToLeader[i];
         for(auto &c:cst){
             if(edges[srcNode].count(c)){
-                edge[c] = mp[lookup(edges[srcNode][c])];
+                edge[c] = leaderToNewNode[lookup(edges[srcNode][c])];
             }
         }
         newEdges.push_back(edge);
     }
-//    clearDeadNode(cst, newEdges, start, statCnt, newFinalStatus);
+    clearDeadNode(cst, newEdges, newStart, statCnt, newFinalStatus);
     status = statCnt;
     edges = newEdges;
     this->finalStatus = newFinalStatus;
@@ -221,10 +223,10 @@ void DFA::clearDeadNode(
                 Q.push(v);
                 mp[v] = cnt++;
             }
-            newEdges[mp[start]][k] = mp[v];
+            newEdges[mp[top]][k] = mp[v];
         }
     }
     status = cnt;
     edges = newEdges;
-    finalStatus = finalStatus;
+    finalStatus = newFinalStatus;
 }
