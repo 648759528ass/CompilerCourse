@@ -16,14 +16,13 @@ DFA::DFA(NFAMap& mp,charset& cst,int start,int end){
     create(mp,cst,start,end);
 }
 void DFA::create(NFAMap& mp,charset& cst,int start,int end) {
-    this->mp = mp;
     std::unordered_map<std::set<int>,int,customHash> record;
     std::set<int> st;
     std::queue<std::set<int>> Q;
     st.insert(start);
-    st = epsilon_closure(std::move(st));
+    st = epsilon_closure(std::move(st),mp);
     record[st] = status++;
-    edge.emplace_back();
+    edges.emplace_back();
     Q.push(st);
     while(!Q.empty()){
         auto top = Q.front();
@@ -32,7 +31,7 @@ void DFA::create(NFAMap& mp,charset& cst,int start,int end) {
         if(top.count(end))
             finalStatus.insert(this_stat);
         for(auto &c:cst){
-            auto nextSt = epsilon_closure(move(top,c));
+            auto nextSt = epsilon_closure(move(top,c,mp),mp);
             if(nextSt.empty()) continue;
             int nxStatus;
             if(record.count(nextSt)){
@@ -40,12 +39,13 @@ void DFA::create(NFAMap& mp,charset& cst,int start,int end) {
             }else{
                 nxStatus = status;
                 record[nextSt] = status++;
-                edge.emplace_back();
+                edges.emplace_back();
                 Q.push(nextSt);
             }
-            edge[this_stat][c] = nxStatus;
+            edges[this_stat][c] = nxStatus;
         }
     }
+    minor(cst);
 }
 DFA::DFA(NFA& n){
     auto [moveList,cst] = n.getMoveList();
@@ -58,14 +58,15 @@ std::ostream& operator<< (std::ostream& out,DFA& A){
             out<<"(final) ";
         }
         out<<"\n{ ";
-        for(auto&[k,v]:A.edge[i]){
+        for(auto&[k,v]:A.edges[i]){
             out<<" "<<k<<"->"<<v<<" ";
         }
         out<<"}\n";
     }
     return out;
 }
-std::set<int> DFA::epsilon_closure(std::set<int>&& src){
+std::set<int> DFA::epsilon_closure(std::set<int> &&src, NFAMap &mp)
+{
     std::set<int> ret;
     for(auto& s:src){
         ret.insert(s);
@@ -74,9 +75,10 @@ std::set<int> DFA::epsilon_closure(std::set<int>&& src){
         }
     }
     if(ret == src) return ret;
-    return epsilon_closure(std::move(ret));
+    return epsilon_closure(std::move(ret),mp);
 }
-std::set<int> DFA::move(std::set<int> src,char by){
+std::set<int> DFA::move(std::set<int> src, char by, NFAMap &mp)
+{
     std::set<int> ret;
     for(auto& s:src){
         if(mp[s].count(by)){
@@ -88,9 +90,141 @@ std::set<int> DFA::move(std::set<int> src,char by){
 bool DFA::judge(std::string s){
     int st = 0;
     for(auto &c:s){
-        if(edge[st].find(c)!=edge[st].end()){
-            st = edge[st][c];
+        if(edges[st].find(c)!=edges[st].end()){
+            st = edges[st][c];
         }else return false;
     }
     return finalStatus.count(st);
+}
+void DFA::minor(charset& cst){
+    std::unordered_set<std::set<int>, customHash> stateGroup, newStateGroup;
+    std::set<int> noramlStatus,finalStatus;
+    for(int i = 0;i<status;i++){
+        if(this->finalStatus.count(i)){
+            finalStatus.insert(i);
+        }else{
+            noramlStatus.insert(i);
+        }
+    }
+    newStateGroup.insert(noramlStatus);
+    newStateGroup.insert(finalStatus);
+    do{
+        stateGroup = newStateGroup;
+        newStateGroup.clear();
+        std::unordered_map<std::set<int>, std::set<int>, customHash> record;
+        std::for_each(stateGroup.begin(), stateGroup.end(), [&record](auto& st) {
+            record[st] = {};
+        });
+        std::vector<std::set<int>> store;
+        int brkSignal = 0;
+        for (auto &v : stateGroup){
+            if(brkSignal){
+                newStateGroup.insert(v);
+                continue;
+            }
+            for (auto &c : cst){
+                for (auto &sta : v){
+                    for(auto&[k,v]:record){
+                        if(k.count(edges[sta][c])){
+                            v.insert(sta);
+                        }
+                    }
+                }
+                for(auto&[k,v]:record)
+                {
+                    if(v.size()){
+                        store.push_back(v);
+                        v.clear();
+                    } 
+                };
+                if(store.size()>1){
+                    brkSignal = 1;
+                    for(auto& v:store){
+                        newStateGroup.insert(v);
+                    }
+                }
+                store.clear();
+            }
+            if(!brkSignal){
+                newStateGroup.insert(v);
+            }
+        }
+    }while(newStateGroup != stateGroup);
+    Edges newEdges;                  // 新边集
+    std::unordered_map<int, int> mp; // 领导节点对应新边集点
+    //并查集开始
+    std::unordered_map<int, int> mergeSet;
+    for(int i = 0;i<status;i++) mergeSet[i] = i;
+    std::function<int(int)> lookup;
+    lookup = [&mergeSet,&lookup](int a)->int{
+        return a == mergeSet[a] ? a : mergeSet[a] = lookup(mergeSet[a]);
+    };
+    auto merge = [&mergeSet,&lookup](int a,int b){
+        auto fa = lookup(a);
+        auto fb = lookup(b);
+        mergeSet[b] = a;
+    };
+    //并查集结束
+    int statCnt = 0;
+    int start = 0;
+    std::unordered_set<int> newFinalStatus;
+    for (auto &st:newStateGroup){
+        if(st.count(0)) start = statCnt;
+        int leader = *(st.begin());
+        if( finalStatus.count(leader) ) newFinalStatus.insert(statCnt);
+        for(auto &v:st){
+            merge(leader,v);
+        }
+        mp[leader] = statCnt++;
+    }
+    for(int i = 0;i<statCnt;i++){
+        std::unordered_map<char, int> edge;
+        int srcNode = mp[i];
+        for(auto &c:cst){
+            if(edges[srcNode].count(c)){
+                edge[c] = mp[lookup(edges[srcNode][c])];
+            }
+        }
+        newEdges.push_back(edge);
+    }
+//    clearDeadNode(cst, newEdges, start, statCnt, newFinalStatus);
+    status = statCnt;
+    edges = newEdges;
+    this->finalStatus = newFinalStatus;
+}
+void DFA::clearDeadNode(
+    charset &cst,
+    Edges &edges,
+    int start,
+    int &status,
+    std::unordered_set<int>& finalStatus
+    )
+{
+    Edges newEdges;
+    std::unordered_set<int> newFinalStatus;
+    std::map<int,int> mp;
+    std::queue<int> Q;
+    int cnt = 0;
+    Q.push(start);
+    newEdges.emplace_back();
+    if (finalStatus.count(start))
+        newFinalStatus.insert(cnt);
+    mp[start] = cnt++;
+    while(!Q.empty()){
+        auto top = Q.front();
+        Q.pop();
+        for(auto &[k,v]:edges[top]){
+            if (mp.find(v)==mp.end()){
+                if (finalStatus.count(v))
+                    newFinalStatus.insert(cnt);
+                newEdges.emplace_back();
+                Q.push(v);
+                mp[v] = cnt++;
+            }
+            newEdges[mp[start]][k] = mp[v];
+        }
+    }
+    status = cnt;
+    edges = newEdges;
+    finalStatus = finalStatus;
 }
