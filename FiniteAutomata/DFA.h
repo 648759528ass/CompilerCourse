@@ -29,6 +29,7 @@ class DFA {
 public:
     DFA(NFAMap& mp,charset& cst,int start,int end);
     DFA(NFA& n);
+    DFA(const std::string& regex);
     friend std::ostream& operator<< (std::ostream& out,DFA& A);
     bool judge(std::string s);
 private:

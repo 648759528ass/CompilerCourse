@@ -255,3 +255,8 @@ void DFA::clearDeadNode(
     edges = newEdges;
     finalStatus = newFinalStatus;
 }
+DFA::DFA(const std::string& regex) {
+    NFA ret = NFA::makeNFAFromRegex(regex);
+    auto [moveList,cst] = ret.getMoveList();
+    create(moveList,cst,ret.getStart(),ret.getEnd());
+}
