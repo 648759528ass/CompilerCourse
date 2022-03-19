@@ -194,6 +194,26 @@ void DFA::minor(charset& cst){
     edges = newEdges;
     this->finalStatus = newFinalStatus;
 }
+bool checkFinal(
+        int nowState,
+        Edges &edges,
+        std::unordered_set<int>& finalStatus,
+        bool vis[],
+        bool connectFinal[]
+){
+    if(connectFinal[nowState]) return true;
+    if(finalStatus.count(nowState)) return true;
+    for(auto &[k,v]:edges[nowState]){
+        if(!vis[v]){
+            vis[v] = true;
+            if(connectFinal[v]||checkFinal(v,edges,finalStatus,vis,connectFinal)){
+                return connectFinal[nowState] = true;
+            }
+            vis[v] = false;
+        }
+    }
+    return false;
+}
 void DFA::clearDeadNode(
     charset &cst,
     Edges &edges,
@@ -206,16 +226,21 @@ void DFA::clearDeadNode(
     std::unordered_set<int> newFinalStatus;
     std::map<int,int> mp;
     std::queue<int> Q;
+    bool vis[status],connectFinal[status];
+    memset(vis,0,sizeof(vis));
+    memset(connectFinal,0,sizeof(connectFinal));
     int cnt = 0;
     Q.push(start);
     newEdges.emplace_back();
     if (finalStatus.count(start))
         newFinalStatus.insert(cnt);
     mp[start] = cnt++;
+    checkFinal(start,edges,finalStatus,vis,connectFinal);
     while(!Q.empty()){
         auto top = Q.front();
         Q.pop();
         for(auto &[k,v]:edges[top]){
+            if(!(connectFinal[v]||checkFinal(v,edges,finalStatus,vis,connectFinal))) continue;
             if (mp.find(v)==mp.end()){
                 if (finalStatus.count(v))
                     newFinalStatus.insert(cnt);
