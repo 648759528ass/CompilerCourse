@@ -3,7 +3,7 @@
 //
 
 #include "DFA.h"
-
+#include <sstream>
 std::size_t customHash::operator()(const std::set<int> &a) const {
     std::size_t seed = a.size();
     for(auto&i:a){
@@ -12,10 +12,7 @@ std::size_t customHash::operator()(const std::set<int> &a) const {
     return seed;
 }
 
-DFA::DFA(NFAMap& mp,charset& cst,int start,int end){
-    create(mp,cst,start,end);
-}
-void DFA::create(NFAMap& mp,charset& cst,int start,int end) {
+void DFA::create(NFAMap& mp,int start,int end) {
     std::unordered_map<std::set<int>,int,customHash> record;
     std::set<int> st;
     std::queue<std::set<int>> Q;
@@ -45,12 +42,11 @@ void DFA::create(NFAMap& mp,charset& cst,int start,int end) {
             edges[this_stat][c] = nxStatus;
         }
     }
-    minor(cst);
-
 }
 DFA::DFA(NFA& n){
     auto [moveList,cst] = n.getMoveList();
-    create(moveList,cst,n.getStart(),n.getEnd());
+    this->cst = cst;
+    create(moveList,n.getStart(),n.getEnd());
 }
 std::ostream& operator<< (std::ostream& out,DFA& A){
     for(int i = 0;i<A.status;i++){
@@ -97,7 +93,7 @@ bool DFA::judge(std::string s){
     }
     return finalStatus.count(st);
 }
-void DFA::minor(charset& cst){
+void DFA::minor(){
     std::unordered_set<std::set<int>, customHash> stateGroup, newStateGroup;
     std::set<int> noramlStatus,finalStatus;
     for(int i = 0;i<status;i++){
@@ -107,8 +103,10 @@ void DFA::minor(charset& cst){
             noramlStatus.insert(i);
         }
     }
-    newStateGroup.insert(noramlStatus);
-    newStateGroup.insert(finalStatus);
+    if(!noramlStatus.empty())
+        newStateGroup.insert(noramlStatus);
+    if(!finalStatus.empty())
+        newStateGroup.insert(finalStatus);
     do{
         stateGroup = newStateGroup;
         newStateGroup.clear();
@@ -189,7 +187,7 @@ void DFA::minor(charset& cst){
         }
         newEdges.push_back(edge);
     }
-    clearDeadNode(cst, newEdges, newStart, statCnt, newFinalStatus);
+    clearDeadNode( newEdges, newStart, statCnt, newFinalStatus);
     status = statCnt;
     edges = newEdges;
     this->finalStatus = newFinalStatus;
@@ -215,7 +213,6 @@ bool checkFinal(
     return false;
 }
 void DFA::clearDeadNode(
-    charset &cst,
     Edges &edges,
     int start,
     int &status,
@@ -258,5 +255,23 @@ void DFA::clearDeadNode(
 DFA::DFA(const std::string& regex) {
     NFA ret = NFA::makeNFAFromRegex(regex);
     auto [moveList,cst] = ret.getMoveList();
-    create(moveList,cst,ret.getStart(),ret.getEnd());
+    this->cst = std::move(cst);
+    create(moveList,ret.getStart(),ret.getEnd());
+}
+std::string DFA::getGraphvizString(){
+    std::ostringstream head;
+    std::ostringstream out;
+    head<<"node [shape = circle];\n";
+    out<<"start -> " << 0 <<";\n";
+    for(int i = 0;i<status;i++){
+        if(finalStatus.count(i)){
+            head<<i<<" [shape=doublecircle];\n";
+        }else{
+            head<<i<<" [];\n";
+        }
+        for(auto&[k,v]:edges[i]){
+            out<<i<<" -> "<<v<<"[label=\""<<k<<"\"]"<<";\n";
+        }
+    }
+    return head.str()+"\n"+out.str();
 }

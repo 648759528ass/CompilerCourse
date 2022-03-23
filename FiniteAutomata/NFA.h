@@ -44,8 +44,11 @@ private:
     static NFA makeNFAFromSuffix(std::string s);
 
 
+
 public:
     NFA(char  c);
+    std::string getGraphvizString();
+    static NFA makeUniversal();
     static NFA makeNFAFromRegex(std::string s);
     std::pair<NFAMap,charset> getMoveList();
     ~NFA(){
@@ -67,6 +70,7 @@ public:
     int getStart();
     int getEnd();
     friend std::ostream& operator<< (std::ostream&,NFA& A);
+
 };
 
 #endif //REGEX2DFA_NFA_H

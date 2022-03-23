@@ -4,6 +4,7 @@
 
 #include "NFA.h"
 #include <stack>
+#include <sstream>
 std::string RegexHandler::addConcat(std::string s){
     std::string ret;
     for(int i = 0;i<s.size();i++){
@@ -130,6 +131,14 @@ NFA NFA::makeNFAFromSuffix(std::string s){
                 st.push(NFA::closure(a));
                 break;
             }
+            case '.':{
+                st.push(NFA::makeUniversal());
+                break;
+            }
+            case '-':{
+                st.push(NFA('\0'));
+                break;
+            }
             case '\\':{
                 i++;
             }
@@ -141,11 +150,12 @@ NFA NFA::makeNFAFromSuffix(std::string s){
     return st.top();
 }
 NFA NFA::makeNFAFromRegex(std::string s){
-    return makeNFAFromSuffix(RegexHandler::inToSuffix(RegexHandler::addConcat(s)));
+    std::string suffix =RegexHandler::inToSuffix(RegexHandler::addConcat(s));
+//    std::cout<<suffix<<"\n";
+    return makeNFAFromSuffix(suffix);
 }
 int NFANode::NodeCnt = 0;
-NFANode::NFANode():nodeIdx(NodeCnt++),status(NFANode::NodeStatus::normal) {
-}
+NFANode::NFANode():nodeIdx(NodeCnt++),status(NFANode::NodeStatus::normal) {}
 NFA::NFA(char c) {
     start = std::make_shared<NFANode>();
     end = std::make_shared<NFANode>();
@@ -238,4 +248,44 @@ std::ostream& operator<< (std::ostream& out,NFA& A){
     }
     return out;
 }
-
+NFA NFA::makeUniversal(){
+    auto start = std::make_shared<NFANode>();
+    auto end = std::make_shared<NFANode>();
+    start->path['\0'].push_back(end);
+    for(int i = 32;i<=126;i++){
+        start->path[i].push_back(end);
+    }
+    end->status = NFANode::final;
+    return NFA(start,end);
+}
+std::string NFA::getGraphvizString(){
+    std::ostringstream out,head;
+    std::unordered_set<int> st;
+    std::queue<std::shared_ptr<NFANode>> Q;
+    head<<"node [shape = circle];\n"<<start->nodeIdx<<" [];\n";
+    out<<"start -> " << start->nodeIdx<<";\n\n";
+    Q.push(start);
+    st.insert(start->nodeIdx);
+    while(!Q.empty()){
+        auto top = Q.front();
+        Q.pop();
+        for(auto&[k,v]:top->path){
+            for(auto& p:v){
+                if(!st.count(p->nodeIdx)){
+                    st.insert(p->nodeIdx);
+                    Q.push(p);
+                    if(p->nodeIdx!=end->nodeIdx){
+                        head<<p->nodeIdx<<" [];\n";
+                    }
+                }
+                if(k == '\0'){
+                    out<<top->nodeIdx << " -> " << p->nodeIdx<<"[label=\"&epsilon;\"]"<<";\n";
+                }else{
+                    out<<top->nodeIdx << " -> " << p->nodeIdx<<"[label=\""<<k<<"\"]"<<";\n";
+                }
+            }
+        }
+    }
+    head<<end->nodeIdx<<" [shape=doublecircle]\n\n";
+    return head.str()+"\n"+out.str();
+}

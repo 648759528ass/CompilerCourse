@@ -27,20 +27,21 @@ public:
 
 class DFA {
 public:
-    DFA(NFAMap& mp,charset& cst,int start,int end);
     DFA(NFA& n);
     DFA(const std::string& regex);
     friend std::ostream& operator<< (std::ostream& out,DFA& A);
     bool judge(std::string s);
+    void minor();
+    std::string getGraphvizString();
 private:
     Edges edges;
     std::unordered_set<int> finalStatus;
     int status = 0;
+    charset cst;
     std::set<int> epsilon_closure(std::set<int> &&src, NFAMap& mp);
     std::set<int> move(std::set<int> src, char by, NFAMap &mp);
-    void create(NFAMap& mp,charset& cst,int start,int end);
-    void minor(charset &cst);
-    void clearDeadNode(charset &cst, Edges &edges, int start, int &status, std::unordered_set<int>& finalStatus);
+    void create(NFAMap& mp,int start,int end);
+    void clearDeadNode(Edges &edges, int start, int &status, std::unordered_set<int>& finalStatus);
 };
 
 
