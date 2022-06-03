@@ -4,6 +4,8 @@
 
 #ifndef REGEX2DFA_DFA_H
 #define REGEX2DFA_DFA_H
+
+#include <cstring>
 #include <iostream>
 #include <unordered_map>
 #include <unordered_set>
@@ -19,6 +21,7 @@
 using NFAMap = std::unordered_map<int,std::unordered_map<char,std::vector<int>>>;
 using charset = std::unordered_set<char>;
 using Edges = std::vector<std::unordered_map<char, int>>;
+
 class customHash
 {
 public:

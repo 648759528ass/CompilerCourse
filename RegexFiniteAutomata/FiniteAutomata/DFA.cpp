@@ -123,6 +123,10 @@ void DFA::minor(){
             }
             for (auto &c : cst){
                 for (auto &sta : v){
+                    if(edges[sta].count(c) == 0){
+                        record[{}].insert(sta);
+                        continue;
+                    }
                     for(auto&[k,v]:record){
                         if(k.count(edges[sta][c])){
                             v.insert(sta);
@@ -143,6 +147,7 @@ void DFA::minor(){
                     }
                 }
                 store.clear();
+                if(brkSignal) break;
             }
             if(!brkSignal){
                 newStateGroup.insert(v);
@@ -205,6 +210,7 @@ bool checkFinal(
         if(!vis[v]){
             vis[v] = true;
             if(connectFinal[v]||checkFinal(v,edges,finalStatus,vis,connectFinal)){
+                vis[v] = false;
                 return connectFinal[nowState] = true;
             }
             vis[v] = false;

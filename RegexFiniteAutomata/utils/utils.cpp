@@ -7,7 +7,6 @@
 #include "../FiniteAutomata/DFA.h"
 #include <string>
 #include <fstream>
-#include <cstdlib>
 void utils::generateGraphViz(std::string fileName,std::string body){
     std::ofstream out(fileName+".dot");
     out<<"digraph G{\n"<<body<<"\n}";
