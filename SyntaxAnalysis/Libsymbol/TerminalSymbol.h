@@ -1,0 +1,14 @@
+//
+// Created by jhas on 2022/6/3.
+//
+
+#ifndef SYNTAXANALYSIS_TERMINALSYMBOL_H
+#define SYNTAXANALYSIS_TERMINALSYMBOL_H
+
+
+class TerminalSymbol {
+
+};
+
+
+#endif //SYNTAXANALYSIS_TERMINALSYMBOL_H
